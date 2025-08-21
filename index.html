@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>Hızlı Okuma</title>
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.js"></script>
+  <script>
+    // PDF.js için worker ayarı (önce burada yapılmalı!)
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.worker.min.js";
+  </script>
+  <!-- TailwindCSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen" style="background-color: skyblue;">
+  <div class="p-6 bg-white rounded-2xl shadow-xl w-full max-w-xl" style="background-color: lightblue;">
+    <h1 class="text-2xl font-bold mb-4 text-center">📖 CAT FAST BOOK</h1>
+
+    <!-- PDF Yükleme -->
+    <input type="file" id="pdfFile" accept="application/pdf" class="mb-4 w-full"/>
+
+    <!-- Hız kontrolü -->
+    <label class="block mb-2">Kelime Hızı (ms)</label>
+    <input type="number" id="speed" value="250" class="border rounded p-2 w-full mb-4"/>
+
+    <!-- Başlat / Durdur -->
+    <div class="flex gap-4 mb-4">
+      <button id="startBtn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">Başlat</button>
+      <button id="stopBtn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded">Durdur</button>
+    </div>
+
+    <!-- Kelime Gösterim Alanı --> 
+    <div id="display" class="text-4xl font-bold text-center p-8 border rounded-lg h-40 flex items-center justify-center" style="background-color:whitesmoke;">
+      Burada kelimeler akacak...
+    </div>
+  </div>
+
+  <script>
+  // UI referansları
+  const startBtn = document.getElementById("startBtn");
+  const stopBtn = document.getElementById("stopBtn");
+  const display  = document.getElementById("display");
+  const fileInput = document.getElementById("pdfFile");
+
+  let words = [];
+  let index = 0;
+  let interval = null;
+
+  // PDF okunana kadar başlat kapalı
+  startBtn.disabled = true;
+
+  fileInput.addEventListener("change", async (e) => {
+    clearInterval(interval);
+    interval = null;
+    index = 0;
+    display.textContent = "PDF okunuyor...";
+    words = [];
+
+    const file = e.target.files[0];
+    if (!file) { 
+      display.textContent = "Bir PDF seç.";
+      startBtn.disabled = true;
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async function() {
+      try {
+        const typedarray = new Uint8Array(this.result);
+        const pdf = await pdfjsLib.getDocument(typedarray).promise;
+
+        let textContent = "";
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const txt = await page.getTextContent();
+          textContent += txt.items.map(s => s.str).join(" ") + " ";
+        }
+
+        words = textContent.split(/\s+/).filter(w => w.trim().length > 0);
+
+        if (words.length) {
+          display.textContent = `Hazır ✅ Toplam kelime: ${words.length}`;
+          startBtn.disabled = false;
+        } else {
+          display.textContent = "Bu PDF'de metin bulunamadı (taranmış olabilir).";
+          startBtn.disabled = true;
+        }
+      } catch (err) {
+        console.error(err);
+        display.textContent = "PDF okunamadı.";
+        startBtn.disabled = true;
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+
+  startBtn.addEventListener("click", () => {
+    if (!words.length) {
+      display.textContent = "Önce metin içeren bir PDF yükle 🙃";
+      return;
+    }
+    const speed = parseInt(document.getElementById("speed").value) || 250;
+
+    clearInterval(interval);
+    index = 0;
+
+    // İlk kelimeyi anında göster
+    display.textContent = words[index++];
+
+    // Sonrakiler zamanlayıcıyla aksın
+    interval = setInterval(() => {
+      if (index < words.length) {
+        display.textContent = words[index++];
+      } else {
+        clearInterval(interval);
+        interval = null;
+        display.textContent = "🎉 Bitti!";
+      }
+    }, speed);
+  });
+
+  stopBtn.addEventListener("click", () => {
+    clearInterval(interval);
+    interval = null;
+  });
+</script>
+
+</body>
+</html>
